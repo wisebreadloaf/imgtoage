@@ -3,6 +3,7 @@ import base64
 import requests
 import subprocess
 
+# docker run -d -p 5000:5000 --gpus=all r8.im/yuval-alaluf/sam@sha256:9222a21c181b707209ef12b5e0d7e94c994b58f01c7b2fec075d2e892362f13c
 url = "http://localhost:5000/predictions"
 headers = {"Content-Type": "application/json"}
 data = {
