@@ -27,7 +27,7 @@ picture = input_column.camera_input("Take a picture")
 if picture:
     count = 1
     bytes_data = picture.getvalue()
-    with open(f"./data/captured_image.png{count}", "wb") as f:
+    with open(f"./data/captured_image{count}.png", "wb") as f:
         f.write(bytes_data)
     st.markdown(
         """
