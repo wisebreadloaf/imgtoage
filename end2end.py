@@ -1,40 +1,141 @@
+import streamlit as st
 import json
 import base64
 import requests
 import subprocess
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api
+import gradio as gr
+import cv2
+import os
 
-# docker run -d -p 5000:5000 --gpus=all r8.im/yuval-alaluf/sam@sha256:9222a21c181b707209ef12b5e0d7e94c994b58f01c7b2fec075d2e892362f13c
-url = "http://localhost:5000/predictions"
-headers = {"Content-Type": "application/json"}
-data = {
-    "input": {
-        "image": "https://replicate.delivery/mgxm/806bea64-bb51-4c8a-bf4d-15602eb60fdd/1287.jpg",
-        "target_age": "default",
+
+cloud_name = (os.getenv("CLOUD_NAME"),)
+cloudinary.config(
+    cloud_name=os.getenv("CLOUD_NAME"),
+    api_key=os.getenv("CLOUD_API"),
+    api_secret=os.getenv("CLOUD_API_SECRET"),
+)
+
+
+st.title("Image to GIF Converter")
+
+input_column, output_column = st.columns(2)
+
+picture = input_column.camera_input("Take a picture")
+if picture:
+    count = 1
+    bytes_data = picture.getvalue()
+    with open(f"./data/captured_image.png{count}", "wb") as f:
+        f.write(bytes_data)
+    st.markdown(
+        """
+        <style>
+            .stAlert {
+                width: 105%; /* Adjust the width as needed */
+                margin: auto; /* Center the alert */
+            }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.success("Image saved successfully.")
+st.markdown(
+    """
+    <style>
+        .stFileUploaderFileData {
+            margin-top: 20px;
+        }
+        .st-emotion-cache-1lp7pgu {
+            margin-top: 15px;
+        }
+        .st-emotion-cache-1mdkfbq{
+            margin-top: 16px;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+uploaded_file = input_column.file_uploader("Upload an image", type=["jpg", "png"])
+
+
+def create_gif(image):
+    response = cloudinary.uploader.upload(image)
+    print(response)
+    input_img = response["secure_url"]
+
+    url = "http://localhost:5000/predictions"
+    headers = {"Content-Type": "application/json"}
+    data = {
+        "input": {
+            "image": input_img,
+            "target_age": "default",
+        }
     }
-}
 
-response = requests.post(url, headers=headers, json=data)
-if response.status_code == 200:
-    with open("output.json", "w") as f:
-        json.dump(response.json(), f)
-    print("Response saved to output.json")
-else:
-    print(f"Request failed with status code: {response.status_code}")
-with open("output.json", "r") as file:
-    data = json.load(file)
+    response = requests.post(url, headers=headers, json=data)
+    if response.status_code == 200:
+        with open("output.json", "w") as f:
+            json.dump(response.json(), f)
+        print("Response saved to output.json")
+    else:
+        print(f"Request failed with status code: {response.status_code}")
+    with open("./data/output.json", "r") as file:
+        data = json.load(file)
 
-output_value = data.get("output")
-base64_gif = output_value.split(",")[1]
-gif_data = base64.b64decode(base64_gif)
-with open("output.gif", "wb") as f:
-    f.write(gif_data)
+    public_ids = [response["public_id"]]
+    image_delete_result = cloudinary.api.delete_resources(
+        public_ids, resource_type="image", type="upload"
+    )
+    print(image_delete_result)
+    output_value = data.get("output")
 
-command = ["kitty", "+kitten", "icat", "./output.gif"]
-result = subprocess.run(command, capture_output=True, text=True)
+    base64_gif = output_value.split(",")[1]
+    gif_data = base64.b64decode(base64_gif)
+    with open("./data/output.gif", "wb") as f:
+        f.write(gif_data)
 
-if result.returncode == 0:
-    print("Command executed successfully.")
-    print(result.stdout)
-else:
-    print(f"Command failed with return code {result.returncode}.")
-    print(result.stderr)
+    return f'<h8 style = "font-size: 14px;">Output</h8><img style="border: 0.5px solid rgb(225, 225, 225, 0.2); border-radius:15px; height: 378px; width: 378px;" src="{output_value}" alt="Generated GIF">'
+
+
+if picture or uploaded_file:
+    if picture:
+        image_to_process = picture
+    else:
+        image_to_process = uploaded_file
+    output_image = create_gif(image_to_process)
+    output_column.markdown(output_image, unsafe_allow_html=True)
+    with open("./data/output.gif", "rb") as f:
+        st.markdown(
+            """
+        <style>
+            .stDownloadButton button {
+                width : 380px;
+                padding: 10px 20px; /* Adjust padding to change size */
+                font-size: 16px; /* Adjust font size to change text size */
+            }
+        </style>
+        """,
+            unsafe_allow_html=True,
+        )
+
+        output_column.download_button(
+            label="Download GIF", data=f, file_name="output.gif", mime="image/gif"
+        )
+
+path = "/home/bored/Downloads/"
+
+data_folder = "data"
+if not os.path.exists(data_folder):
+    os.makedirs(data_folder)
+
+iface = gr.Interface(
+    fn=create_gif,
+    inputs=gr.components.Image(),
+    outputs=gr.components.Image(),
+    title="Age transformation using Style-GAN",
+    description="Upload an image and see yourself age.",
+)
+
+iface.launch()
