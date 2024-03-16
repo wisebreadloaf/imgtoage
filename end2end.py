@@ -1,4 +1,5 @@
 import streamlit as st
+import replicate
 import json
 import base64
 import requests
@@ -27,8 +28,11 @@ picture = input_column.camera_input("Take a picture")
 if picture:
     count = 1
     bytes_data = picture.getvalue()
-    with open(f"./data/captured_image{count}.png", "wb") as f:
-        f.write(bytes_data)
+    try:
+        with open(f"./data/captured_image{count}.png", "wb") as f:
+            f.write(bytes_data)
+    except Exception as e:
+        print(f"Error writing file: {e}")
     st.markdown(
         """
         <style>
@@ -61,42 +65,53 @@ uploaded_file = input_column.file_uploader("Upload an image", type=["jpg", "png"
 
 
 def create_gif(image):
+    # response = cloudinary.uploader.upload(image)
+    # print(response)
+    # input_img = response["secure_url"]
+    #
+    # url = "http://localhost:5000/predictions"
+    # headers = {"Content-Type": "application/json"}
+    # data = {
+    #     "input": {
+    #         "image": input_img,
+    #         "target_age": "default",
+    #     }
+    # }
+    #
+    # response = requests.post(url, headers=headers, json=data)
+    # if response.status_code == 200:
+    #     with open("output.json", "w") as f:
+    #         json.dump(response.json(), f)
+    #     print("Response saved to output.json")
+    # else:
+    #     print(f"Request failed with status code: {response.status_code}")
+    #
+    # public_ids = [response["public_id"]]
+    # image_delete_result = cloudinary.api.delete_resources(
+    #     public_ids, resource_type="image", type="upload"
+    # )
+    # print(image_delete_result)
     response = cloudinary.uploader.upload(image)
     print(response)
     input_img = response["secure_url"]
 
-    url = "http://localhost:5000/predictions"
-    headers = {"Content-Type": "application/json"}
-    data = {
-        "input": {
-            "image": input_img,
+    output = replicate.run(
+        "yuval-alaluf/sam:9222a21c181b707209ef12b5e0d7e94c994b58f01c7b2fec075d2e892362f13c",
+        input={
+            "image": f"{input_img}",
             "target_age": "default",
-        }
-    }
-
-    response = requests.post(url, headers=headers, json=data)
-    if response.status_code == 200:
-        with open("output.json", "w") as f:
-            json.dump(response.json(), f)
-        print("Response saved to output.json")
-    else:
-        print(f"Request failed with status code: {response.status_code}")
-    with open("./data/output.json", "r") as file:
-        data = json.load(file)
-
-    public_ids = [response["public_id"]]
-    image_delete_result = cloudinary.api.delete_resources(
-        public_ids, resource_type="image", type="upload"
+        },
     )
-    print(image_delete_result)
-    output_value = data.get("output")
-
-    base64_gif = output_value.split(",")[1]
-    gif_data = base64.b64decode(base64_gif)
-    with open("./data/output.gif", "wb") as f:
-        f.write(gif_data)
-
-    return f'<h8 style = "font-size: 14px;">Output</h8><img style="border: 0.5px solid rgb(225, 225, 225, 0.2); border-radius:15px; height: 378px; width: 378px;" src="{output_value}" alt="Generated GIF">'
+    # with open("./data/output.json", "r") as file:
+    #     data = json.load(file)
+    #
+    # output_value = data.get("output")
+    # base64_gif = output_value.split(",")[1]
+    # gif_data = base64.b64decode(base64_gif)
+    # with open("./data/output.gif", "wb") as f:
+    #     f.write(gif_data)
+    #
+    return f'<h8 style = "font-size: 14px;">Output</h8><img style="border: 0.5px solid rgb(225, 225, 225, 0.2); border-radius:15px; height: 378px; width: 378px;" src="{output}" alt="Generated GIF">'
 
 
 if picture or uploaded_file:
@@ -106,23 +121,23 @@ if picture or uploaded_file:
         image_to_process = uploaded_file
     output_image = create_gif(image_to_process)
     output_column.markdown(output_image, unsafe_allow_html=True)
-    with open("./data/output.gif", "rb") as f:
-        st.markdown(
-            """
-        <style>
-            .stDownloadButton button {
-                width : 380px;
-                padding: 10px 20px; /* Adjust padding to change size */
-                font-size: 16px; /* Adjust font size to change text size */
-            }
-        </style>
-        """,
-            unsafe_allow_html=True,
-        )
-
-        output_column.download_button(
-            label="Download GIF", data=f, file_name="output.gif", mime="image/gif"
-        )
+    # with open("./data/output.gif", "rb") as f:
+    #     st.markdown(
+    #         """
+    #     <style>
+    #         .stDownloadButton button {
+    #             width : 380px;
+    #             padding: 10px 20px; /* Adjust padding to change size */
+    #             font-size: 16px; /* Adjust font size to change text size */
+    #         }
+    #     </style>
+    #     """,
+    #         unsafe_allow_html=True,
+    #     )
+    #
+    #     output_column.download_button(
+    #         label="Download GIF", data=f, file_name="output.gif", mime="image/gif"
+    #     )
 
 path = "/home/bored/Downloads/"
 
